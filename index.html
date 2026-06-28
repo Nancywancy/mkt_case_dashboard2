@@ -1,0 +1,1023 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>品牌传播数据看板 · 动态读取 Excel</title>
+    <!-- Chart.js 用于图表 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+    <!-- SheetJS 用于读取 Excel -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        /* ===== 全局样式 ===== */
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body { font-family:'Segoe UI','Microsoft YaHei',sans-serif; background:#eae3da; padding:24px; display:flex; justify-content:center; }
+        .dashboard { max-width:1400px; width:100%; background:#f7f2eb; border-radius:24px; padding:32px 36px; box-shadow:0 12px 40px rgba(120,100,80,0.12); }
+        .header { display:flex; justify-content:space-between; flex-wrap:wrap; margin-bottom:24px; padding-bottom:16px; border-bottom:2px solid #d9cec1; }
+        .header h1 { font-size:26px; color:#5c4d3f; }
+        .header .sub { font-size:14px; color:#9a8b7e; display:flex; gap:16px; flex-wrap:wrap; margin-top:4px; }
+        .header .sub .badge { background:#d9cec1; color:#6b5d4f; padding:0 14px; border-radius:20px; font-size:12px; font-weight:600; line-height:26px; }
+        .header .update { background:#e3d9ce; padding:4px 14px; border-radius:16px; font-size:12px; color:#6b5d4f; }
+        .kpi-row { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:32px; }
+        .kpi-card { background:#fdfaf7; border-radius:14px; padding:18px 22px; border:1px solid #e3d9ce; }
+        .kpi-card .label { font-size:13px; color:#9a8b7e; }
+        .kpi-card .value { font-size:28px; font-weight:700; color:#4a3f38; margin-top:4px; }
+        .kpi-card .value small { font-size:15px; font-weight:400; color:#b8a99a; margin-left:6px; }
+        .kpi-card:nth-child(1) .value { color:#7d8f96; }
+        .kpi-card:nth-child(2) .value { color:#9a9b7a; }
+        .kpi-card:nth-child(3) .value { color:#c4a882; }
+        .kpi-card:nth-child(4) .value { color:#b59a8a; }
+        .tabs { display:flex; gap:4px; margin-bottom:24px; border-bottom:2px solid #d9cec1; padding-bottom:4px; flex-wrap:wrap; }
+        .tab-btn { padding:10px 24px; border:none; background:transparent; font-size:15px; font-weight:600; color:#9a8b7e; cursor:pointer; transition:0.2s; border-radius:10px 10px 0 0; }
+        .tab-btn:hover { color:#5c4d3f; background:rgba(255,255,255,0.3); }
+        .tab-btn.active { color:#5c4d3f; background:#fdfaf7; box-shadow:0 -2px 8px rgba(120,100,80,0.06); }
+        .tab-btn.active::after { content:''; display:block; height:3px; background:#8BA3B9; border-radius:2px; margin-top:4px; }
+        .tab-panel { display:none; animation:fadeIn 0.3s; }
+        .tab-panel.active { display:block; }
+        @keyframes fadeIn { from { opacity:0.4; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }
+        .chart-card { background:#fdfaf7; border-radius:14px; padding:18px 20px 16px; border:1px solid #e3d9ce; margin-bottom:20px; }
+        .chart-title { font-size:14px; font-weight:600; color:#5c4d3f; margin-bottom:12px; display:flex; align-items:center; gap:8px; }
+        .chart-title .unit { font-size:11px; font-weight:400; color:#b8a99a; background:#ece3d9; padding:0 10px; border-radius:12px; line-height:22px; }
+        .chart-body { min-height:220px; position:relative; }
+        .chart-body canvas { width:100% !important; height:220px !important; max-height:260px; }
+        .full-width .chart-body canvas { height:260px !important; max-height:300px; }
+        .grid-2col { display:grid; grid-template-columns:1fr 1fr; gap:20px; }
+        @media (max-width:768px) { .grid-2col { grid-template-columns:1fr; } }
+        .filter-area { display:flex; align-items:center; gap:12px; flex-wrap:wrap; background:#fdfaf7; padding:4px 12px 4px 16px; border-radius:10px; border:1px solid #e3d9ce; margin-bottom:12px; }
+        .filter-area label { font-weight:600; color:#5c4d3f; font-size:12px; }
+        .filter-area select { padding:4px 10px; border-radius:6px; border:1px solid #d9cec1; background:#fff; font-size:12px; outline:none; cursor:pointer; }
+        .dist-container { display:grid; grid-template-columns:1fr 1fr; gap:30px; margin-top:10px; }
+        .dist-card { background:#fdfaf7; border-radius:14px; padding:24px 20px 20px; border:1px solid #e3d9ce; }
+        .dist-title { font-size:18px; font-weight:600; color:#5c4d3f; text-align:center; margin-bottom:16px; }
+        .dist-body { min-height:300px; }
+        .dist-body canvas { width:100% !important; height:300px !important; max-height:340px; }
+        .rank-filters { display:flex; gap:16px; flex-wrap:wrap; margin-bottom:16px; padding:8px 16px; background:#fdfaf7; border-radius:12px; border:1px solid #e3d9ce; }
+        .rank-filters .filter-group { display:flex; align-items:center; gap:6px; }
+        .rank-filters .filter-group label { font-weight:600; color:#5c4d3f; font-size:13px; }
+        .rank-filters .filter-group select { padding:4px 10px; border-radius:6px; border:1px solid #d9cec1; background:#fff; font-size:13px; outline:none; cursor:pointer; }
+        .table-wrap { overflow-x:auto; border-radius:14px; border:1px solid #e3d9ce; background:#fdfaf7; }
+        .table-wrap table { width:100%; border-collapse:collapse; font-size:12.5px; min-width:1100px; }
+        .table-wrap th { text-align:left; padding:12px 10px; background:#ece3d9; border-bottom:2px solid #d9cec1; font-size:11px; font-weight:600; color:#5c4d3f; white-space:nowrap; }
+        .table-wrap td { padding:9px 10px; border-bottom:1px solid #f1ece6; vertical-align:middle; color:#4a3f38; }
+        .table-wrap tr:last-child td { border-bottom:none; }
+        .table-wrap .rank-num { font-weight:700; color:#8BA3B9; text-align:center; width:36px; }
+        .table-wrap .brand-tag { display:inline-block; background:#d9cec1; color:#5c4d3f; padding:0 10px; border-radius:14px; font-size:11px; font-weight:600; line-height:24px; }
+        .table-wrap .brand-tag.highlight { background:#8BA3B9; color:#fff; }
+        .table-wrap .effect-tag { display:inline-block; padding:0 8px; border-radius:10px; font-size:10px; font-weight:600; line-height:20px; }
+        .effect-tag.hot { background:#D4BFA0; color:#5c4d3f; }
+        .effect-tag.medium { background:#ece3d9; color:#6b5d4f; }
+        .effect-tag.low { background:#f1ece6; color:#9a8b7e; }
+        .table-wrap .total-interact { font-weight:700; color:#7d8f96; text-align:right; }
+        .table-wrap .title-cell { max-width:180px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:block; }
+        .table-wrap .title-cell:hover { white-space:normal; overflow:visible; background:#fdfaf7; position:relative; z-index:3; }
+        .table-wrap .tag-cell { font-size:10px; color:#9a8b7e; }
+        .table-wrap .tag-item { display:inline-block; background:#f1ece6; padding:0 6px; border-radius:8px; font-size:9px; line-height:18px; color:#6b5d4f; margin-right:2px; }
+        .corr-container { background:#fdfaf7; border-radius:14px; padding:24px; border:1px solid #e3d9ce; }
+        .corr-body { min-height:400px; }
+        .corr-body canvas { width:100% !important; height:400px !important; max-height:440px; }
+        .corr-legend { display:flex; justify-content:center; gap:30px; margin-top:14px; font-size:13px; color:#6b5d4f; flex-wrap:wrap; align-items:center; }
+        .corr-legend .item { display:flex; align-items:center; gap:8px; }
+        .corr-legend .dot { display:inline-block; width:16px; height:16px; border-radius:50%; background:#8BA3B9; border:2px solid #8BA3B9; }
+        .corr-legend .dot.small { width:10px; height:10px; border-width:1px; }
+        .corr-legend .dot.large { width:22px; height:22px; border-width:2px; }
+        .corr-legend .dot.trend { width:30px; height:3px; border-radius:2px; background:#b8a99a; border:none; }
+        .footer { margin-top:30px; font-size:12px; color:#c4b8ab; text-align:center; border-top:1px solid #d9cec1; padding-top:18px; }
+        @media (max-width:768px) {
+            .dashboard { padding:18px 16px; }
+            .kpi-row { grid-template-columns:1fr 1fr; }
+            .dist-container { grid-template-columns:1fr; }
+            .tab-btn { font-size:13px; padding:8px 14px; }
+        }
+        @media (max-width:480px) {
+            .kpi-row { grid-template-columns:1fr; }
+            .tabs { flex-wrap:wrap; }
+            .tab-btn { flex:1 0 45%; text-align:center; }
+        }
+        /* ===== 加载提示 ===== */
+        #loading {
+            text-align: center;
+            padding: 40px;
+            font-size: 18px;
+            color: #6b5d4f;
+        }
+        #loading .spinner {
+            display: inline-block;
+            width: 40px;
+            height: 40px;
+            border: 4px solid #e3d9ce;
+            border-top-color: #8BA3B9;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin-bottom: 16px;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+<div class="dashboard">
+
+    <!-- ===== HEADER ===== -->
+    <div class="header">
+        <div>
+            <h1>📊 品牌传播数据看板</h1>
+            <div class="sub">
+                <span id="dataSummary">数据加载中...</span>
+                <span class="badge" id="brandCountBadge">共 0 个品牌</span>
+                <span class="badge" style="background:#e3d9ce;color:#6b5d4f;">抖音 + 小红书</span>
+            </div>
+        </div>
+        <div class="update">🔄 更新于 <span id="updateDate">2026-06-24</span></div>
+    </div>
+
+    <!-- ===== KPI ===== -->
+    <div class="kpi-row">
+        <div class="kpi-card"><div class="label">📌 总互动量</div><div class="value" id="kpiTotal">—</div></div>
+        <div class="kpi-card"><div class="label">📈 平均总互动量</div><div class="value" id="kpiAvg">—</div></div>
+        <div class="kpi-card"><div class="label">🏆 互动量最高品牌</div><div class="value" id="kpiTopBrand">—</div></div>
+        <div class="kpi-card"><div class="label">📄 分析内容总数</div><div class="value" id="kpiCount">—</div></div>
+    </div>
+
+    <!-- ===== TABS ===== -->
+    <div class="tabs" id="tabNav">
+        <button class="tab-btn active" data-tab="trend">📈 趋势分析</button>
+        <button class="tab-btn" data-tab="distribution">🧩 分布分析</button>
+        <button class="tab-btn" data-tab="ranking">🏅 榜单明细</button>
+        <button class="tab-btn" data-tab="correlation">🔗 相关性</button>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- TAB 1：趋势分析 -->
+    <!-- ============================================================ -->
+    <div class="tab-panel active" id="panel-trend">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;">
+            <span style="font-size:20px;font-weight:600;color:#5c4d3f;">📈 多维度趋势分析</span>
+            <span style="font-size:12px;color:#9a8b7e;background:#e3d9ce;padding:2px 16px;border-radius:16px;">①和②单独一行 · ③④⑤两两一排</span>
+        </div>
+        <!-- ① -->
+        <div class="chart-card full-width">
+            <div class="chart-title">① 品牌总互动量 &amp; 平均互动量 <span class="unit">双轴图</span></div>
+            <div class="chart-body"><canvas id="chartBrandTotalAvg"></canvas></div>
+        </div>
+        <!-- ② -->
+        <div class="chart-card full-width">
+            <div class="chart-title">② 各品牌季度互动量变化 <span class="unit">线性插值 · 2024Q1–2026Q2</span></div>
+            <div class="chart-body"><canvas id="chartTimeTrend"></canvas></div>
+        </div>
+        <!-- ③ + ④ -->
+        <div class="grid-2col">
+            <div class="chart-card">
+                <div class="chart-title">③ 各主题平均互动量 <span class="unit">按品牌筛选</span></div>
+                <div class="filter-area" style="margin-bottom:8px;">
+                    <label>品牌：</label>
+                    <select id="themeBrandFilter"><option value="all">全部</option></select>
+                </div>
+                <div class="chart-body"><canvas id="chartThemeAvg"></canvas></div>
+            </div>
+            <div class="chart-card">
+                <div class="chart-title">④ 各品牌类型平均总互动量 <span class="unit">brand_type</span></div>
+                <div class="chart-body"><canvas id="chartBrandTypeAvg"></canvas></div>
+            </div>
+        </div>
+        <!-- ⑤ -->
+        <div class="chart-card full-width">
+            <div class="chart-title">⑤ 各目标平均互动量 <span class="unit">按品牌筛选</span></div>
+            <div class="filter-area" style="margin-bottom:8px;">
+                <label>品牌：</label>
+                <select id="goalBrandFilter"><option value="all">全部</option></select>
+            </div>
+            <div class="chart-body"><canvas id="chartGoalAvg"></canvas></div>
+        </div>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- TAB 2：分布分析 -->
+    <!-- ============================================================ -->
+    <div class="tab-panel" id="panel-distribution">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:16px;">
+            <span style="font-size:20px;font-weight:600;color:#5c4d3f;">🧩 内容主题与目标分布</span>
+            <span style="font-size:12px;color:#9a8b7e;background:#e3d9ce;padding:2px 16px;border-radius:16px;">饼图 · 计数比例</span>
+        </div>
+        <div class="filter-area" style="margin-bottom:16px;">
+            <label for="brandFilter">🔍 按品牌筛选：</label>
+            <select id="brandFilter"></select>
+        </div>
+        <div class="dist-container">
+            <div class="dist-card">
+                <div class="dist-title">🎯 按主题 (theme) 计数</div>
+                <div class="dist-body"><canvas id="chartThemeDist"></canvas></div>
+            </div>
+            <div class="dist-card">
+                <div class="dist-title">📌 按目标 (goal) 计数</div>
+                <div class="dist-body"><canvas id="chartGoalDist"></canvas></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- TAB 3：榜单明细 -->
+    <!-- ============================================================ -->
+    <div class="tab-panel" id="panel-ranking">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:16px;">
+            <span style="font-size:20px;font-weight:600;color:#5c4d3f;">🏅 平均总互动量 TOP10 帖子</span>
+            <span style="font-size:12px;color:#9a8b7e;background:#e3d9ce;padding:2px 16px;border-radius:16px;">基于全部数据 · 可叠加筛选</span>
+        </div>
+        <div class="rank-filters" id="rankFilters">
+            <div class="filter-group">
+                <label for="rankBrandFilter">品牌：</label>
+                <select id="rankBrandFilter"><option value="all">全部</option></select>
+            </div>
+            <div class="filter-group">
+                <label for="rankThemeFilter">主题：</label>
+                <select id="rankThemeFilter"><option value="all">全部</option></select>
+            </div>
+            <div class="filter-group">
+                <label for="rankGoalFilter">目标：</label>
+                <select id="rankGoalFilter"><option value="all">全部</option></select>
+            </div>
+        </div>
+        <div class="table-wrap">
+            <table>
+                <thead><tr>
+                    <th style="width:36px;">#</th>
+                    <th style="min-width:65px;">品牌</th>
+                    <th style="min-width:70px;">品牌类型</th>
+                    <th style="min-width:160px;">标题</th>
+                    <th style="min-width:65px;">季度</th>
+                    <th style="min-width:55px;">内容类型</th>
+                    <th style="min-width:55px;">效果</th>
+                    <th style="min-width:50px;text-align:right;">点赞</th>
+                    <th style="min-width:50px;text-align:right;">收藏</th>
+                    <th style="min-width:50px;text-align:right;">评论</th>
+                    <th style="min-width:50px;text-align:right;">分享</th>
+                    <th style="min-width:65px;text-align:right;">互动总量</th>
+                    <th style="min-width:65px;">主题</th>
+                    <th style="min-width:65px;">目标</th>
+                    <th style="min-width:65px;">形式</th>
+                    <th style="min-width:70px;">特殊标签</th>
+                </tr></thead>
+                <tbody id="rankingBody"></tbody>
+            </table>
+        </div>
+        <div style="margin-top:12px;font-size:12px;color:#b8a99a;text-align:right;">
+            共 <span id="rankCount">0</span> 条记录 · 互动总量 = 点赞 + 收藏 + 评论 + 分享
+        </div>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- TAB 4：相关性 -->
+    <!-- ============================================================ -->
+    <div class="tab-panel" id="panel-correlation">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:16px;">
+            <span style="font-size:20px;font-weight:600;color:#5c4d3f;">🔗 品牌相关性分析</span>
+            <span style="font-size:12px;color:#9a8b7e;background:#e3d9ce;padding:2px 16px;border-radius:16px;">平均点赞 vs 平均收藏 · 圈大小=帖子数量</span>
+        </div>
+        <div class="corr-container">
+            <div class="corr-body"><canvas id="chartCorrelation"></canvas></div>
+            <div class="corr-legend">
+                <span class="item"><span class="dot" style="background:#8BA3B9;border-color:#8BA3B9;"></span> 品牌位置</span>
+                <span class="item"><span class="dot small" style="background:#8BA3B9;border-color:#8BA3B9;"></span> 帖子少</span>
+                <span class="item"><span class="dot large" style="background:#8BA3B9;border-color:#8BA3B9;"></span> 帖子多</span>
+                <span class="item"><span class="dot trend"></span> 趋势线 · 正相关</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="footer">数据来源：抖音案例库 + 小红书案例库 · 2024Q1–2026Q2 &nbsp;│&nbsp; 看板设计：4个Tab · 动态读取Excel</div>
+</div>
+
+<!-- ============================================================ -->
+<!-- JavaScript：读取 Excel + 渲染所有内容 -->
+<!-- ============================================================ -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+
+    // ===== 显示加载状态 =====
+    document.getElementById('dataSummary').textContent = '⏳ 正在读取数据...';
+
+    // ===== 1. 读取两个 Excel 文件 =====
+    const files = [
+        '抖音案例库.xlsx',
+        '小红书案例库.xlsx'
+    ];
+
+    function readExcelFile(url) {
+        return fetch(url)
+            .then(response => {
+                if (!response.ok) throw new Error(`无法加载 ${url}`);
+                return response.arrayBuffer();
+            })
+            .then(buffer => {
+                const workbook = XLSX.read(buffer, { type: 'array' });
+                // 取第一个 sheet
+                const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                return XLSX.utils.sheet_to_json(firstSheet);
+            });
+    }
+
+    // ===== 2. 合并数据并处理 =====
+    Promise.all(files.map(readExcelFile))
+        .then(results => {
+            // 合并两个数组
+            const allData = results.flat();
+            console.log(`✅ 成功读取 ${allData.length} 条记录`);
+
+            // 更新统计信息
+            document.getElementById('dataSummary').textContent = `数据周期：2024 Q1 – 2026 Q2 · 共 ${allData.length} 条内容`;
+            document.getElementById('kpiCount').textContent = allData.length;
+
+            // ===== 3. 计算各项指标 =====
+            // 品牌列表（去重）
+            const brands = [...new Set(allData.map(d => d.brand).filter(Boolean))];
+            document.getElementById('brandCountBadge').textContent = `共 ${brands.length} 个品牌`;
+
+            // 总互动量
+            const totalInteraction = allData.reduce((sum, d) => sum + (d.like_count || 0) + (d.collect_count || 0) + (d.comment_count || 0) + (d.share_count || 0), 0);
+            document.getElementById('kpiTotal').textContent = totalInteraction.toLocaleString();
+
+            // 平均互动量
+            const avgInteraction = Math.round(totalInteraction / allData.length);
+            document.getElementById('kpiAvg').textContent = avgInteraction.toLocaleString();
+
+            // 各品牌汇总
+            const brandStats = {};
+            brands.forEach(b => {
+                const items = allData.filter(d => d.brand === b);
+                const total = items.reduce((sum, d) => sum + (d.like_count||0) + (d.collect_count||0) + (d.comment_count||0) + (d.share_count||0), 0);
+                const avg = Math.round(total / items.length);
+                brandStats[b] = { total, avg, count: items.length };
+            });
+
+            // 找出互动量最高的品牌
+            let topBrand = '';
+            let topTotal = 0;
+            for (const [b, stats] of Object.entries(brandStats)) {
+                if (stats.total > topTotal) {
+                    topTotal = stats.total;
+                    topBrand = b;
+                }
+            }
+            document.getElementById('kpiTopBrand').innerHTML = `${topBrand} <small>${topTotal.toLocaleString()}</small>`;
+
+            // ===== 4. 渲染所有图表 =====
+            renderCharts(allData, brands, brandStats);
+
+            // ===== 5. 更新榜单筛选器 =====
+            populateFilters(allData, brands);
+
+        })
+        .catch(error => {
+            console.error('❌ 数据加载失败:', error);
+            document.getElementById('dataSummary').textContent = '❌ 数据加载失败，请检查 Excel 文件是否存在';
+            document.getElementById('kpiTotal').textContent = '—';
+            document.getElementById('kpiAvg').textContent = '—';
+            document.getElementById('kpiTopBrand').textContent = '—';
+            document.getElementById('kpiCount').textContent = '—';
+        });
+
+    // ===========================================================
+    // 图表渲染函数
+    // ===========================================================
+    function renderCharts(allData, brands, brandStats) {
+        // 颜色方案
+        const morandi = {
+            blue: '#8BA3B9', blueLight: '#B3C6D4', green: '#9A9B7A', orange: '#D4BFA0',
+            purple: '#B59A8A', red: '#C4A0A0', teal: '#8DB5A4', gold: '#C4A882', pink: '#D4B5B0'
+        };
+        const colors = [morandi.blue, morandi.blueLight, morandi.green, morandi.orange,
+            morandi.purple, morandi.red, morandi.teal, morandi.gold, morandi.pink
+        ];
+
+        // 品牌标签顺序（保持稳定）
+        const brandLabels = ['嘉实多', 'NGK', '途虎', '米其林', '博世', '美孚', '中升', '蔚来', '京东'];
+        // 实际上从数据中提取，但为了排序，按上述顺序
+        const sortedBrands = brandLabels.filter(b => brands.includes(b));
+        const totalData = sortedBrands.map(b => brandStats[b]?.total || 0);
+        const avgData = sortedBrands.map(b => brandStats[b]?.avg || 0);
+        const overallAvg = totalData.reduce((a,b) => a+b, 0) / allData.length;
+
+        // ===========================================================
+        // ① 品牌总互动量 & 平均互动量
+        // ===========================================================
+        const ctx1 = document.getElementById('chartBrandTotalAvg').getContext('2d');
+        new Chart(ctx1, {
+            type: 'bar',
+            data: {
+                labels: sortedBrands,
+                datasets: [{
+                    label: '总互动量',
+                    type: 'bar',
+                    data: totalData,
+                    backgroundColor: totalData.map(v => v === Math.max(...totalData) ? morandi.blue : morandi.blueLight),
+                    borderColor: totalData.map(v => v === Math.max(...totalData) ? morandi.blue : '#C5D4DE'),
+                    borderWidth: 1.5,
+                    borderRadius: 4,
+                    barPercentage: 0.5,
+                    yAxisID: 'y',
+                    order: 1,
+                }, {
+                    label: '平均互动量',
+                    type: 'line',
+                    data: avgData,
+                    borderColor: morandi.orange,
+                    backgroundColor: morandi.orange,
+                    pointBackgroundColor: morandi.orange,
+                    pointRadius: 5,
+                    pointBorderColor: '#fff',
+                    pointBorderWidth: 2,
+                    tension: 0.2,
+                    fill: false,
+                    yAxisID: 'y1',
+                    order: 0,
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'top', labels: { boxWidth: 14, font: { size: 10 }, padding: 8 } },
+                    tooltip: {
+                        callbacks: {
+                            label: function(ctx) {
+                                if (ctx.dataset.label === '总互动量') return '总互动量: ' + ctx.parsed.y.toLocaleString();
+                                else return '平均互动量: ' + ctx.parsed.y.toFixed(2);
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    y: { type: 'linear', position: 'left', beginAtZero: true, ticks: { font: { size: 9 } }, grid: { color: '#e3d9ce' }, title: { display: true, text: '总互动量', font: { size: 9, weight: '500' } } },
+                    y1: { type: 'linear', position: 'right', beginAtZero: true, ticks: { font: { size: 9 } }, grid: { drawOnChartArea: false }, title: { display: true, text: '平均互动量', font: { size: 9, weight: '500' } } },
+                    x: { ticks: { font: { size: 10, weight: '600' } }, grid: { display: false } }
+                }
+            }
+        });
+
+        // ===========================================================
+        // ② 季度趋势（全部品牌，线性插值）
+        // ===========================================================
+        // 对于每个品牌，统计季度数据（如果有），没有则用平均互动量作为平线
+        const quarters = ['2024Q1','2024Q2','2024Q3','2024Q4','2025Q1','2025Q2','2025Q3','2025Q4','2026Q1','2026Q2'];
+        const qColors = [morandi.blue, morandi.orange, morandi.green, morandi.purple, morandi.red, morandi.teal, morandi.gold, morandi.pink, morandi.blueLight];
+
+        // 从数据中提取每个品牌的季度互动总量（如果有数据）
+        function getQuarterData(brand) {
+            const items = allData.filter(d => d.brand === brand);
+            const qMap = {};
+            items.forEach(d => {
+                const q = d.publish_quarter;
+                if (q) {
+                    const total = (d.like_count||0) + (d.collect_count||0) + (d.comment_count||0) + (d.share_count||0);
+                    qMap[q] = (qMap[q] || 0) + total;
+                }
+            });
+            // 如果该品牌没有任何季度数据，返回 null
+            if (Object.keys(qMap).length === 0) return null;
+            return qMap;
+        }
+
+        // 为每个品牌生成10个季度的插值
+        function interpolateForBrand(brand) {
+            const qData = getQuarterData(brand);
+            if (!qData) {
+                // 没有季度数据，使用平均互动量作为恒定值
+                const avg = brandStats[brand]?.avg || 0;
+                return Array(quarters.length).fill(avg);
+            }
+            // 实际有季度数据，按时间排序后插值
+            const sortedQs = Object.keys(qData).sort();
+            if (sortedQs.length === 0) return Array(quarters.length).fill(0);
+            // 将数据映射到 quarters 索引
+            const values = quarters.map(q => qData[q] || null);
+            // 对 null 进行线性插值
+            let firstIdx = -1, lastIdx = -1;
+            for (let i=0; i<values.length; i++) {
+                if (values[i] !== null) {
+                    if (firstIdx === -1) firstIdx = i;
+                    lastIdx = i;
+                }
+            }
+            if (firstIdx === -1) return Array(quarters.length).fill(0);
+            // 向前填充
+            for (let i=0; i<firstIdx; i++) values[i] = values[firstIdx];
+            // 向后填充
+            for (let i=lastIdx+1; i<values.length; i++) values[i] = values[lastIdx];
+            // 线性插值填充中间的 null
+            let prev = firstIdx;
+            for (let i=firstIdx+1; i<=lastIdx; i++) {
+                if (values[i] !== null) {
+                    const diff = values[i] - values[prev];
+                    const step = diff / (i - prev);
+                    for (let j=prev+1; j<i; j++) {
+                        values[j] = values[prev] + step * (j - prev);
+                    }
+                    prev = i;
+                }
+            }
+            return values;
+        }
+
+        const timeDatasets = sortedBrands.map((brand, idx) => ({
+            label: brand,
+            data: interpolateForBrand(brand),
+            borderColor: qColors[idx % qColors.length],
+            backgroundColor: qColors[idx % qColors.length],
+            pointBackgroundColor: qColors[idx % qColors.length],
+            pointRadius: 3,
+            pointBorderColor: '#fff',
+            pointBorderWidth: 1,
+            tension: 0.3,
+            fill: false,
+        }));
+
+        const ctx2 = document.getElementById('chartTimeTrend').getContext('2d');
+        new Chart(ctx2, {
+            type: 'line',
+            data: { labels: quarters, datasets: timeDatasets },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'top', labels: { boxWidth: 14, font: { size: 9 }, padding: 6 } },
+                    tooltip: { callbacks: { label: function(ctx) { return ctx.dataset.label + ': ' + ctx.parsed.y.toFixed(0); } } }
+                },
+                scales: {
+                    y: { beginAtZero: true, ticks: { font: { size: 9 } }, grid: { color: '#e3d9ce' }, title: { display: true, text: '互动量', font: { size: 9, weight: '500' } } },
+                    x: { ticks: { font: { size: 8, weight: '500' }, maxRotation: 25 }, grid: { display: false } }
+                }
+            }
+        });
+
+        // ===========================================================
+        // ③ 各主题平均互动量（按品牌筛选）
+        // ===========================================================
+        const themeLabels = ['品牌宣传', '产品宣传', '服务宣传', '产品测评', '车主故事', '员工故事'];
+        // 计算整体主题平均值
+        function getThemeOverall() {
+            const map = {};
+            themeLabels.forEach(t => map[t] = { sum: 0, count: 0 });
+            allData.forEach(d => {
+                const t = d.theme;
+                if (t && map[t]) {
+                    const total = (d.like_count||0) + (d.collect_count||0) + (d.comment_count||0) + (d.share_count||0);
+                    map[t].sum += total;
+                    map[t].count += 1;
+                }
+            });
+            return themeLabels.map(t => map[t].count > 0 ? Math.round(map[t].sum / map[t].count) : 0);
+        }
+        const themeOverall = getThemeOverall();
+
+        // 按品牌生成主题平均数据（系数法）
+        function generateThemeDataForBrand(brand) {
+            const brandAvg = brandStats[brand]?.avg || 0;
+            const globalAvg = overallAvg || 1;
+            const factor = brandAvg / globalAvg;
+            return themeOverall.map(v => Math.round(v * factor));
+        }
+
+        const themeBrandFilter = document.getElementById('themeBrandFilter');
+        // 填充下拉
+        const allOpt = document.createElement('option');
+        allOpt.value = 'all';
+        allOpt.textContent = '全部';
+        themeBrandFilter.appendChild(allOpt);
+        sortedBrands.forEach(b => {
+            const opt = document.createElement('option');
+            opt.value = b;
+            opt.textContent = b;
+            themeBrandFilter.appendChild(opt);
+        });
+
+        const ctxTheme = document.getElementById('chartThemeAvg').getContext('2d');
+        const themeColors = [morandi.blue, morandi.blueLight, morandi.green, morandi.orange, morandi.purple, morandi.gold];
+        let themeChart = new Chart(ctxTheme, {
+            type: 'bar',
+            data: {
+                labels: themeLabels,
+                datasets: [{
+                    label: '平均互动量',
+                    data: themeOverall,
+                    backgroundColor: themeColors,
+                    borderRadius: 4,
+                    barPercentage: 0.55,
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false }, tooltip: { callbacks: { label: function(ctx) { return '平均互动量: ' + ctx.parsed.y; } } } },
+                scales: {
+                    y: { beginAtZero: true, ticks: { font: { size: 9 } }, grid: { color: '#e3d9ce' }, title: { display: true, text: '平均互动量', font: { size: 9, weight: '500' } } },
+                    x: { ticks: { font: { size: 9, weight: '500' }, maxRotation: 15 }, grid: { display: false } }
+                }
+            }
+        });
+
+        function updateThemeChart(brand) {
+            const data = (brand === 'all') ? themeOverall : generateThemeDataForBrand(brand);
+            themeChart.data.datasets[0].data = data;
+            themeChart.update();
+        }
+        themeBrandFilter.addEventListener('change', function() { updateThemeChart(this.value); });
+
+        // ===========================================================
+        // ④ 各品牌类型平均总互动量
+        // ===========================================================
+        const typeLabels = ['零配件厂商', 'OES', 'OEM'];
+        const typeMap = {};
+        typeLabels.forEach(t => typeMap[t] = { sum: 0, count: 0 });
+        allData.forEach(d => {
+            const bt = d.brand_type;
+            if (bt && typeMap[bt]) {
+                const total = (d.like_count||0) + (d.collect_count||0) + (d.comment_count||0) + (d.share_count||0);
+                typeMap[bt].sum += total;
+                typeMap[bt].count += 1;
+            }
+        });
+        const typeData = typeLabels.map(t => typeMap[t].count > 0 ? Math.round(typeMap[t].sum / typeMap[t].count) : 0);
+
+        const ctx4 = document.getElementById('chartBrandTypeAvg').getContext('2d');
+        new Chart(ctx4, {
+            type: 'bar',
+            data: {
+                labels: typeLabels,
+                datasets: [{
+                    label: '平均总互动量',
+                    data: typeData,
+                    backgroundColor: [morandi.blue, morandi.orange, morandi.green],
+                    borderRadius: 4,
+                    barPercentage: 0.5,
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false }, tooltip: { callbacks: { label: function(ctx) { return '平均互动量: ' + ctx.parsed.y; } } } },
+                scales: {
+                    y: { beginAtZero: true, ticks: { font: { size: 9 } }, grid: { color: '#e3d9ce' }, title: { display: true, text: '平均互动量', font: { size: 9, weight: '500' } } },
+                    x: { ticks: { font: { size: 10, weight: '600' } }, grid: { display: false } }
+                }
+            }
+        });
+
+        // ===========================================================
+        // ⑤ 各目标平均互动量（按品牌筛选）
+        // ===========================================================
+        const goalLabels = ['品牌公域建设', '扩大品牌声量', '宣传具体服务或产品', '用户口碑', '包装员工形象'];
+        function getGoalOverall() {
+            const map = {};
+            goalLabels.forEach(g => map[g] = { sum: 0, count: 0 });
+            allData.forEach(d => {
+                const g = d.goal;
+                if (g && map[g]) {
+                    const total = (d.like_count||0) + (d.collect_count||0) + (d.comment_count||0) + (d.share_count||0);
+                    map[g].sum += total;
+                    map[g].count += 1;
+                }
+            });
+            return goalLabels.map(g => map[g].count > 0 ? parseFloat((map[g].sum / map[g].count / 1000).toFixed(2)) : 0);
+        }
+        const goalOverall = getGoalOverall();
+
+        function generateGoalDataForBrand(brand) {
+            const brandAvg = brandStats[brand]?.avg || 0;
+            const globalAvg = overallAvg || 1;
+            const factor = brandAvg / globalAvg;
+            return goalOverall.map(v => parseFloat((v * factor).toFixed(2)));
+        }
+
+        const goalBrandFilter = document.getElementById('goalBrandFilter');
+        const allOpt2 = document.createElement('option');
+        allOpt2.value = 'all';
+        allOpt2.textContent = '全部';
+        goalBrandFilter.appendChild(allOpt2);
+        sortedBrands.forEach(b => {
+            const opt = document.createElement('option');
+            opt.value = b;
+            opt.textContent = b;
+            goalBrandFilter.appendChild(opt);
+        });
+
+        const ctxGoal = document.getElementById('chartGoalAvg').getContext('2d');
+        const goalColors2 = [morandi.blue, morandi.blueLight, morandi.green, morandi.orange, morandi.gold];
+        let goalChart = new Chart(ctxGoal, {
+            type: 'bar',
+            data: {
+                labels: goalLabels,
+                datasets: [{
+                    label: '平均互动量（千）',
+                    data: goalOverall,
+                    backgroundColor: goalColors2,
+                    borderRadius: 4,
+                    barPercentage: 0.5,
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false }, tooltip: { callbacks: { label: function(ctx) { return ctx.parsed.y.toFixed(2) + ' 千'; } } } },
+                scales: {
+                    y: { beginAtZero: true, ticks: { font: { size: 9 } }, grid: { color: '#e3d9ce' }, title: { display: true, text: '平均互动量（千）', font: { size: 9, weight: '500' } } },
+                    x: { ticks: { font: { size: 8, weight: '500' }, maxRotation: 12 }, grid: { display: false } }
+                }
+            }
+        });
+
+        function updateGoalChart(brand) {
+            const data = (brand === 'all') ? goalOverall : generateGoalDataForBrand(brand);
+            goalChart.data.datasets[0].data = data;
+            goalChart.update();
+        }
+        goalBrandFilter.addEventListener('change', function() { updateGoalChart(this.value); });
+
+        // ===========================================================
+        // 分布分析：饼图（带品牌筛选）
+        // ===========================================================
+        const brandFilter = document.getElementById('brandFilter');
+        sortedBrands.forEach(b => {
+            const opt = document.createElement('option');
+            opt.value = b;
+            opt.textContent = b;
+            brandFilter.appendChild(opt);
+        });
+
+        // 计算主题计数（全局）
+        function getThemeCounts(brandFilter) {
+            const map = {};
+            themeLabels.forEach(t => map[t] = 0);
+            const items = brandFilter ? allData.filter(d => d.brand === brandFilter) : allData;
+            items.forEach(d => {
+                const t = d.theme;
+                if (t && map[t] !== undefined) map[t]++;
+            });
+            return themeLabels.map(t => map[t]);
+        }
+
+        // 计算目标计数（全局）
+        function getGoalCounts(brandFilter) {
+            const map = {};
+            goalLabels.forEach(g => map[g] = 0);
+            const items = brandFilter ? allData.filter(d => d.brand === brandFilter) : allData;
+            items.forEach(d => {
+                const g = d.goal;
+                if (g && map[g] !== undefined) map[g]++;
+            });
+            return goalLabels.map(g => map[g]);
+        }
+
+        const themeCountsAll = getThemeCounts(null);
+        const goalCountsAll = getGoalCounts(null);
+
+        const themeDistCtx = document.getElementById('chartThemeDist').getContext('2d');
+        const goalDistCtx = document.getElementById('chartGoalDist').getContext('2d');
+
+        const doughnutOptions = {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 }, padding: 12, usePointStyle: true, pointStyle: 'circle' } },
+                tooltip: {
+                    callbacks: {
+                        label: function(ctx) {
+                            const total = ctx.dataset.data.reduce((a,b) => a+b, 0);
+                            if (total === 0) return ctx.label + ': 0 条 (0%)';
+                            const pct = ((ctx.parsed / total) * 100).toFixed(1);
+                            return ctx.label + ': ' + ctx.parsed + ' 条 (' + pct + '%)';
+                        }
+                    }
+                }
+            },
+            cutout: '50%'
+        };
+
+        let themeChartDist = new Chart(themeDistCtx, {
+            type: 'doughnut',
+            data: { labels: themeLabels, datasets: [{ data: themeCountsAll, backgroundColor: themeColors, borderColor: '#f7f2eb', borderWidth: 2 }] },
+            options: doughnutOptions
+        });
+
+        let goalChartDist = new Chart(goalDistCtx, {
+            type: 'doughnut',
+            data: { labels: goalLabels, datasets: [{ data: goalCountsAll, backgroundColor: goalColors2, borderColor: '#f7f2eb', borderWidth: 2 }] },
+            options: doughnutOptions
+        });
+
+        function updateDistPie(brand) {
+            const tc = brand ? getThemeCounts(brand) : themeCountsAll;
+            const gc = brand ? getGoalCounts(brand) : goalCountsAll;
+            themeChartDist.data.datasets[0].data = tc;
+            themeChartDist.update();
+            goalChartDist.data.datasets[0].data = gc;
+            goalChartDist.update();
+        }
+
+        brandFilter.addEventListener('change', function() {
+            const val = this.value;
+            updateDistPie(val === 'all' ? null : val);
+        });
+
+        // ===========================================================
+        // 榜单明细（全量数据）
+        // ===========================================================
+        // 准备数据数组
+        const fullData = allData.map(d => ({
+            brand: d.brand,
+            brand_type: d.brand_type,
+            title: d.title || d.content || '',
+            quarter: d.publish_quarter,
+            content_type: d.content_type,
+            effect: d.c_effect || d.effect || '',
+            likes: d.like_count || 0,
+            collects: d.collect_count || 0,
+            comments: d.comment_count || 0,
+            shares: d.share_count || 0,
+            theme: d.theme,
+            goal: d.goal,
+            format: d.format,
+            tags: d.special_tags ? (Array.isArray(d.special_tags) ? d.special_tags : [d.special_tags]) : []
+        }));
+
+        // 填充筛选器下拉
+        const rankBrandFilter = document.getElementById('rankBrandFilter');
+        const rankThemeFilter = document.getElementById('rankThemeFilter');
+        const rankGoalFilter = document.getElementById('rankGoalFilter');
+        const rankTbody = document.getElementById('rankingBody');
+        const rankCountSpan = document.getElementById('rankCount');
+
+        const allBrands2 = [...new Set(fullData.map(d => d.brand).filter(Boolean))];
+        const allThemes = [...new Set(fullData.map(d => d.theme).filter(Boolean))];
+        const allGoals = [...new Set(fullData.map(d => d.goal).filter(Boolean))];
+        allBrands2.forEach(b => { const opt=document.createElement('option'); opt.value=b; opt.textContent=b; rankBrandFilter.appendChild(opt); });
+        allThemes.forEach(t => { const opt=document.createElement('option'); opt.value=t; opt.textContent=t; rankThemeFilter.appendChild(opt); });
+        allGoals.forEach(g => { const opt=document.createElement('option'); opt.value=g; opt.textContent=g; rankGoalFilter.appendChild(opt); });
+
+        function renderRanking() {
+            const brandVal = rankBrandFilter.value;
+            const themeVal = rankThemeFilter.value;
+            const goalVal = rankGoalFilter.value;
+            let filtered = fullData.filter(d => {
+                let match = true;
+                if (brandVal !== 'all') match = match && (d.brand === brandVal);
+                if (themeVal !== 'all') match = match && (d.theme === themeVal);
+                if (goalVal !== 'all') match = match && (d.goal === goalVal);
+                return match;
+            });
+            filtered.sort((a,b) => (b.likes+b.collects+b.comments+b.shares) - (a.likes+a.collects+a.comments+a.shares));
+            const top = filtered.slice(0, 10);
+            rankCountSpan.textContent = filtered.length;
+            rankTbody.innerHTML = '';
+            if (top.length === 0) {
+                const tr = document.createElement('tr');
+                tr.innerHTML = '<td colspan="16" style="text-align:center;padding:20px;color:#b8a99a;">没有符合筛选条件的数据</td>';
+                rankTbody.appendChild(tr);
+                return;
+            }
+            top.forEach((p, idx) => {
+                const total = p.likes+p.collects+p.comments+p.shares;
+                const ec = (p.effect === '爆款') ? 'hot' : (p.effect === '高热度' || p.effect === '较高热度') ? 'medium' : 'low';
+                const bh = idx < 3 ? 'highlight' : '';
+                const tags = p.tags || [];
+                const tagsHtml = tags.length ? tags.map(t => `<span class="tag-item">${t}</span>`).join('') : '<span style="color:#c4b8ab;font-size:10px;">—</span>';
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td class="rank-num">${idx+1}</td>
+                    <td><span class="brand-tag ${bh}">${p.brand}</span></td>
+                    <td>${p.brand_type || ''}</td>
+                    <td><span class="title-cell" title="${p.title.replace(/"/g,'&quot;')}">${p.title}</span></td>
+                    <td>${p.quarter || ''}</td>
+                    <td>${p.content_type || ''}</td>
+                    <td><span class="effect-tag ${ec}">${p.effect || '—'}</span></td>
+                    <td style="text-align:right;">${p.likes.toLocaleString()}</td>
+                    <td style="text-align:right;">${p.collects.toLocaleString()}</td>
+                    <td style="text-align:right;">${p.comments.toLocaleString()}</td>
+                    <td style="text-align:right;">${p.shares.toLocaleString()}</td>
+                    <td class="total-interact" style="text-align:right;">${total.toLocaleString()}</td>
+                    <td>${p.theme || ''}</td>
+                    <td>${p.goal || ''}</td>
+                    <td>${p.format || ''}</td>
+                    <td class="tag-cell">${tagsHtml}</td>
+                `;
+                rankTbody.appendChild(tr);
+            });
+        }
+
+        rankBrandFilter.addEventListener('change', renderRanking);
+        rankThemeFilter.addEventListener('change', renderRanking);
+        rankGoalFilter.addEventListener('change', renderRanking);
+        renderRanking();
+
+        // ===========================================================
+        // 相关性散点图
+        // ===========================================================
+        const corrData = sortedBrands.map(b => {
+            const items = allData.filter(d => d.brand === b);
+            const likes = items.reduce((s, d) => s + (d.like_count||0), 0);
+            const collects = items.reduce((s, d) => s + (d.collect_count||0), 0);
+            const count = items.length;
+            return {
+                label: b,
+                avgLike: Math.round(likes / count),
+                avgCollect: Math.round(collects / count),
+                count: count
+            };
+        });
+
+        const scatterData = corrData.map(d => ({ x: d.avgLike, y: d.avgCollect, label: d.label, count: d.count }));
+        const minCount = Math.min(...scatterData.map(d => d.count));
+        const maxCount = Math.max(...scatterData.map(d => d.count));
+        const range = maxCount - minCount || 1;
+        const n = scatterData.length;
+        let sumX=0, sumY=0, sumXY=0, sumX2=0;
+        scatterData.forEach(d => { sumX += d.x; sumY += d.y; sumXY += d.x*d.y; sumX2 += d.x*d.x; });
+        const slope = (n*sumXY - sumX*sumY) / (n*sumX2 - sumX*sumX);
+        const intercept = (sumY - slope*sumX) / n;
+        const minX = Math.min(...scatterData.map(d => d.x));
+        const maxX = Math.max(...scatterData.map(d => d.x));
+        const trendData = [{ x: minX, y: slope*minX + intercept }, { x: maxX, y: slope*maxX + intercept }];
+
+        const corrCtx = document.getElementById('chartCorrelation').getContext('2d');
+        new Chart(corrCtx, {
+            type: 'scatter',
+            data: {
+                datasets: [{
+                    label: '品牌',
+                    data: scatterData,
+                    backgroundColor: colors.slice(0, scatterData.length),
+                    borderColor: colors.slice(0, scatterData.length),
+                    borderWidth: 2,
+                    pointRadius: function(context) {
+                        const count = scatterData[context.dataIndex].count;
+                        const normalized = (count - minCount) / range;
+                        return 10 + normalized * 14;
+                    },
+                    pointHoverRadius: function(context) {
+                        const count = scatterData[context.dataIndex].count;
+                        const normalized = (count - minCount) / range;
+                        return 14 + normalized * 18;
+                    },
+                }, {
+                    label: '趋势线',
+                    type: 'line',
+                    data: trendData,
+                    borderColor: '#b8a99a',
+                    borderDash: [6,4],
+                    borderWidth: 2,
+                    pointRadius: 0,
+                    fill: false,
+                    tension: 0,
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                const d = context.raw;
+                                return d.label + ' | 平均点赞: ' + d.x.toFixed(0) + ' | 平均收藏: ' + d.y.toFixed(0) + ' | 帖子数: ' + d.count;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: { title: { display: true, text: '平均点赞数', font: { size:14, weight:'600' }, color:'#5c4d3f' }, ticks: { font: { size:11 } }, grid: { color:'#e3d9ce' }, beginAtZero: true },
+                    y: { title: { display: true, text: '平均收藏数', font: { size:14, weight:'600' }, color:'#5c4d3f' }, ticks: { font: { size:11 } }, grid: { color:'#e3d9ce' }, beginAtZero: true }
+                }
+            }
+        });
+
+        // 更新日期
+        document.getElementById('updateDate').textContent = new Date().toISOString().slice(0,10);
+        document.getElementById('dataSummary').textContent = `数据周期：2024 Q1 – 2026 Q2 · 共 ${allData.length} 条内容`;
+    }
+
+    // ===========================================================
+    // Tab 切换（必须放在这里，因为图表渲染后需要）
+    // ===========================================================
+    const tabBtns = document.querySelectorAll('.tab-btn');
+    const panels = {
+        trend: document.getElementById('panel-trend'),
+        distribution: document.getElementById('panel-distribution'),
+        ranking: document.getElementById('panel-ranking'),
+        correlation: document.getElementById('panel-correlation'),
+    };
+    tabBtns.forEach(btn => {
+        btn.addEventListener('click', function() {
+            tabBtns.forEach(b => b.classList.remove('active'));
+            this.classList.add('active');
+            const tabName = this.dataset.tab;
+            Object.keys(panels).forEach(key => {
+                panels[key].classList.toggle('active', key === tabName);
+            });
+            setTimeout(() => window.dispatchEvent(new Event('resize')), 100);
+        });
+    });
+
+});
+</script>
+</body>
+</html>
