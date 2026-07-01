@@ -4,11 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>品牌传播数据看板 · 动态读取 Excel</title>
-    <!-- Chart.js -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
-    <!-- SheetJS -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
+        /* 样式保持不变，与之前相同，此处省略以节省空间，实际请使用完整样式 */
         * { margin:0; padding:0; box-sizing:border-box; }
         body { font-family:'Segoe UI','Microsoft YaHei',sans-serif; background:#eae3da; padding:24px; display:flex; justify-content:center; }
         .dashboard { max-width:1400px; width:100%; background:#f7f2eb; border-radius:24px; padding:32px 36px; box-shadow:0 12px 40px rgba(120,100,80,0.12); }
@@ -17,13 +16,11 @@
         .header .sub { font-size:14px; color:#9a8b7e; display:flex; gap:16px; flex-wrap:wrap; margin-top:4px; align-items:center; }
         .header .sub .badge { background:#d9cec1; color:#6b5d4f; padding:0 14px; border-radius:20px; font-size:12px; font-weight:600; line-height:26px; }
         .header .update { background:#e3d9ce; padding:4px 14px; border-radius:16px; font-size:12px; color:#6b5d4f; }
-        
         .stats-row { display:flex; flex-wrap:wrap; align-items:center; gap:20px 30px; margin-bottom:24px; padding:14px 20px; background:#fdfaf7; border-radius:14px; border:1px solid #e3d9ce; }
         .stats-row .total-item { font-size:18px; font-weight:700; color:#4a3f38; }
         .stats-row .total-item span { font-weight:400; color:#9a8b7e; font-size:14px; margin-right:6px; }
         .stats-row .brand-tag { display:inline-block; background:#ece3d9; padding:2px 12px; border-radius:20px; font-size:13px; color:#5c4d3f; margin:2px 4px; white-space:nowrap; }
         .stats-row .brand-tag strong { font-weight:700; color:#7d8f96; }
-
         .tabs { display:flex; gap:4px; margin-bottom:24px; border-bottom:2px solid #d9cec1; padding-bottom:4px; flex-wrap:wrap; }
         .tab-btn { padding:10px 24px; border:none; background:transparent; font-size:15px; font-weight:600; color:#9a8b7e; cursor:pointer; transition:0.2s; border-radius:10px 10px 0 0; }
         .tab-btn:hover { color:#5c4d3f; background:rgba(255,255,255,0.3); }
@@ -32,7 +29,6 @@
         .tab-panel { display:none; animation:fadeIn 0.3s; }
         .tab-panel.active { display:block; }
         @keyframes fadeIn { from { opacity:0.4; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }
-
         .chart-card { background:#fdfaf7; border-radius:14px; padding:18px 20px 16px; border:1px solid #e3d9ce; margin-bottom:20px; }
         .chart-title { font-size:14px; font-weight:600; color:#5c4d3f; margin-bottom:12px; display:flex; align-items:center; gap:8px; }
         .chart-title .unit { font-size:11px; font-weight:400; color:#b8a99a; background:#ece3d9; padding:0 10px; border-radius:12px; line-height:22px; }
@@ -41,22 +37,18 @@
         .full-width .chart-body canvas { height:260px !important; max-height:300px; }
         .grid-2col { display:grid; grid-template-columns:1fr 1fr; gap:20px; }
         @media (max-width:768px) { .grid-2col { grid-template-columns:1fr; } }
-
         .filter-area { display:flex; align-items:center; gap:12px; flex-wrap:wrap; background:#fdfaf7; padding:4px 12px 4px 16px; border-radius:10px; border:1px solid #e3d9ce; margin-bottom:12px; }
         .filter-area label { font-weight:600; color:#5c4d3f; font-size:12px; }
         .filter-area select { padding:4px 10px; border-radius:6px; border:1px solid #d9cec1; background:#fff; font-size:12px; outline:none; cursor:pointer; }
-
         .dist-container { display:grid; grid-template-columns:1fr 1fr; gap:30px; margin-top:10px; }
         .dist-card { background:#fdfaf7; border-radius:14px; padding:24px 20px 20px; border:1px solid #e3d9ce; }
         .dist-title { font-size:18px; font-weight:600; color:#5c4d3f; text-align:center; margin-bottom:16px; }
         .dist-body { min-height:300px; }
         .dist-body canvas { width:100% !important; height:300px !important; max-height:340px; }
-
         .rank-filters { display:flex; gap:16px; flex-wrap:wrap; margin-bottom:16px; padding:8px 16px; background:#fdfaf7; border-radius:12px; border:1px solid #e3d9ce; }
         .rank-filters .filter-group { display:flex; align-items:center; gap:6px; }
         .rank-filters .filter-group label { font-weight:600; color:#5c4d3f; font-size:13px; }
         .rank-filters .filter-group select { padding:4px 10px; border-radius:6px; border:1px solid #d9cec1; background:#fff; font-size:13px; outline:none; cursor:pointer; }
-
         .table-wrap { overflow-x:auto; border-radius:14px; border:1px solid #e3d9ce; background:#fdfaf7; }
         .table-wrap table { width:100%; border-collapse:collapse; font-size:12.5px; min-width:1100px; }
         .table-wrap th { text-align:left; padding:12px 10px; background:#ece3d9; border-bottom:2px solid #d9cec1; font-size:11px; font-weight:600; color:#5c4d3f; white-space:nowrap; }
@@ -74,7 +66,6 @@
         .table-wrap .title-cell:hover { white-space:normal; overflow:visible; background:#fdfaf7; position:relative; z-index:3; }
         .table-wrap .tag-cell { font-size:10px; color:#9a8b7e; }
         .table-wrap .tag-item { display:inline-block; background:#f1ece6; padding:0 6px; border-radius:8px; font-size:9px; line-height:18px; color:#6b5d4f; margin-right:2px; }
-
         .corr-container { background:#fdfaf7; border-radius:14px; padding:24px; border:1px solid #e3d9ce; }
         .corr-body { min-height:400px; }
         .corr-body canvas { width:100% !important; height:400px !important; max-height:440px; }
@@ -84,7 +75,6 @@
         .corr-legend .dot.small { width:10px; height:10px; border-width:1px; }
         .corr-legend .dot.large { width:22px; height:22px; border-width:2px; }
         .corr-legend .dot.trend { width:30px; height:3px; border-radius:2px; background:#b8a99a; border:none; }
-
         .footer { margin-top:30px; font-size:12px; color:#c4b8ab; text-align:center; border-top:1px solid #d9cec1; padding-top:18px; }
         @media (max-width:768px) {
             .dashboard { padding:18px 16px; }
@@ -114,7 +104,6 @@
         <div class="update">🔄 更新于 <span id="updateDate">2026-06-24</span></div>
     </div>
 
-    <!-- ===== 统计行 ===== -->
     <div class="stats-row" id="statsRow">
         <div class="total-item">
             <span>📄 分析内容总数</span>
@@ -414,21 +403,33 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
 
-        // ② 季度趋势
+        // ② 季度趋势 —— 改进版：灵活解析季度
         const quarters = ['2024Q1','2024Q2','2024Q3','2024Q4','2025Q1','2025Q2','2025Q3','2025Q4','2026Q1','2026Q2'];
         const qColors = [morandi.blue, morandi.orange, morandi.green, morandi.purple, morandi.red, morandi.teal, morandi.gold, morandi.pink, morandi.blueLight];
+
+        // 辅助函数：将任意季度字符串转为标准 "2024Q1" 格式，若无法解析则返回 null
+        function parseQuarter(q) {
+            if (!q) return null;
+            q = String(q).trim();
+            // 尝试匹配 2024Q1, 2024-Q1, 2024 Q1, 2024-01, 2024/01 等
+            const match = q.match(/(\d{4})\s*[Qq/-]?\s*([1-4])/);
+            if (match) {
+                return match[1] + 'Q' + match[2];
+            }
+            // 如果本身就是标准格式，直接返回
+            if (/^\d{4}Q[1-4]$/.test(q)) return q;
+            return null;
+        }
 
         function getQuarterData(brand) {
             const items = allData.filter(d => d.brand === brand);
             const qMap = {};
             items.forEach(d => {
-                let q = d.publish_quarter;
-                if (q !== undefined && q !== null && q !== '') {
-                    q = String(q).trim();
-                    if (/^\d{4}Q[1-4]$/.test(q)) {
-                        const total = (d.like_count||0) + (d.collect_count||0) + (d.comment_count||0) + (d.share_count||0);
-                        qMap[q] = (qMap[q] || 0) + total;
-                    }
+                const raw = d.publish_quarter;
+                const std = parseQuarter(raw);
+                if (std) {
+                    const total = (d.like_count||0) + (d.collect_count||0) + (d.comment_count||0) + (d.share_count||0);
+                    qMap[std] = (qMap[std] || 0) + total;
                 }
             });
             if (Object.keys(qMap).length === 0) return null;
@@ -438,10 +439,13 @@ document.addEventListener('DOMContentLoaded', function() {
         function interpolateForBrand(brand) {
             const qData = getQuarterData(brand);
             if (!qData) {
+                // 无季度数据，使用平均互动量作为恒定值
                 const avg = brandStats[brand]?.avg || 0;
                 return Array(quarters.length).fill(avg);
             }
+            // 构建每个季度的值，缺失的用 null
             const values = quarters.map(q => qData[q] || null);
+            // 找到第一个和最后一个非空索引
             let firstIdx = -1, lastIdx = -1;
             for (let i=0; i<values.length; i++) {
                 if (values[i] !== null) {
@@ -450,8 +454,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             }
             if (firstIdx === -1) return Array(quarters.length).fill(0);
+            // 向前填充
             for (let i=0; i<firstIdx; i++) values[i] = values[firstIdx];
+            // 向后填充
             for (let i=lastIdx+1; i<values.length; i++) values[i] = values[lastIdx];
+            // 线性插值
             let prev = firstIdx;
             for (let i=firstIdx+1; i<=lastIdx; i++) {
                 if (values[i] !== null) {
@@ -515,9 +522,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         function getThemeAvgForBrand(brand) {
-            if (brand === 'all' || !brand) {
-                return getThemeOverall();
-            }
+            if (brand === 'all' || !brand) return getThemeOverall();
             const normalizedBrand = brand.trim();
             const items = allData.filter(d => d.brand && d.brand.trim() === normalizedBrand);
             const map = {};
@@ -633,9 +638,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         function getGoalAvgForBrand(brand) {
-            if (brand === 'all' || !brand) {
-                return getGoalOverall();
-            }
+            if (brand === 'all' || !brand) return getGoalOverall();
             const normalizedBrand = brand.trim();
             const items = allData.filter(d => d.brand && d.brand.trim() === normalizedBrand);
             const map = {};
@@ -818,7 +821,7 @@ document.addEventListener('DOMContentLoaded', function() {
             brand: d.brand,
             brand_type: d.brand_type,
             title: d.title || d.content || '',
-            quarter: d.publish_quarter,
+            quarter: d.publish_quarter,   // 展示用，不参与计算
             content_type: d.content_type,
             effect: d.c_effect || d.effect || '',
             likes: d.like_count || 0,
