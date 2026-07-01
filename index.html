@@ -18,7 +18,6 @@
         .header .sub .badge { background:#d9cec1; color:#6b5d4f; padding:0 14px; border-radius:20px; font-size:12px; font-weight:600; line-height:26px; }
         .header .update { background:#e3d9ce; padding:4px 14px; border-radius:16px; font-size:12px; color:#6b5d4f; }
         
-        /* 新的统计行：只显示总数和品牌计数 */
         .stats-row { display:flex; flex-wrap:wrap; align-items:center; gap:20px 30px; margin-bottom:24px; padding:14px 20px; background:#fdfaf7; border-radius:14px; border:1px solid #e3d9ce; }
         .stats-row .total-item { font-size:18px; font-weight:700; color:#4a3f38; }
         .stats-row .total-item span { font-weight:400; color:#9a8b7e; font-size:14px; margin-right:6px; }
@@ -115,15 +114,13 @@
         <div class="update">🔄 更新于 <span id="updateDate">2026-06-24</span></div>
     </div>
 
-    <!-- ===== 精简统计行：只显示总数 + 各品牌计数 ===== -->
+    <!-- ===== 统计行 ===== -->
     <div class="stats-row" id="statsRow">
         <div class="total-item">
             <span>📄 分析内容总数</span>
             <span id="totalCountDisplay">—</span>
         </div>
-        <div id="brandCountsContainer" style="display:flex;flex-wrap:wrap;gap:4px 8px;align-items:center;">
-            <!-- 动态生成品牌标签 -->
-        </div>
+        <div id="brandCountsContainer" style="display:flex;flex-wrap:wrap;gap:4px 8px;align-items:center;"></div>
     </div>
 
     <!-- ===== TABS ===== -->
@@ -141,17 +138,14 @@
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;">
             <span style="font-size:20px;font-weight:600;color:#5c4d3f;">📈 多维度趋势分析</span>
         </div>
-        <!-- ① -->
         <div class="chart-card full-width">
             <div class="chart-title">① 品牌总互动量 &amp; 平均互动量 <span class="unit">双轴图</span></div>
             <div class="chart-body"><canvas id="chartBrandTotalAvg"></canvas></div>
         </div>
-        <!-- ② -->
         <div class="chart-card full-width">
             <div class="chart-title">② 各品牌季度互动量变化 <span class="unit">线性插值 · 2024Q1–2026Q2</span></div>
             <div class="chart-body"><canvas id="chartTimeTrend"></canvas></div>
         </div>
-        <!-- ③ + ④ -->
         <div class="grid-2col">
             <div class="chart-card">
                 <div class="chart-title">③ 各主题平均互动量 <span class="unit">按品牌筛选</span></div>
@@ -166,7 +160,6 @@
                 <div class="chart-body"><canvas id="chartBrandTypeAvg"></canvas></div>
             </div>
         </div>
-        <!-- ⑤ -->
         <div class="chart-card full-width">
             <div class="chart-title">⑤ 各目标平均互动量 <span class="unit">按品牌筛选</span></div>
             <div class="filter-area" style="margin-bottom:8px;">
@@ -304,11 +297,9 @@ document.addEventListener('DOMContentLoaded', function() {
             const allData = results.flat();
             console.log(`✅ 成功读取 ${allData.length} 条记录`);
 
-            // 更新顶部信息
             document.getElementById('dataSummary').textContent = `✅ 数据加载成功 · 共 ${allData.length} 条内容`;
             document.getElementById('totalCountDisplay').textContent = allData.length;
 
-            // 品牌计数
             const brandCounts = {};
             allData.forEach(d => {
                 const b = d.brand;
@@ -317,9 +308,8 @@ document.addEventListener('DOMContentLoaded', function() {
             const brands = Object.keys(brandCounts);
             document.getElementById('brandCountBadge').textContent = `共 ${brands.length} 个品牌`;
 
-            // 生成品牌计数标签
             const container = document.getElementById('brandCountsContainer');
-            container.innerHTML = ''; // 清空
+            container.innerHTML = '';
             brands.forEach(b => {
                 const span = document.createElement('span');
                 span.className = 'brand-tag';
@@ -327,7 +317,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 container.appendChild(span);
             });
 
-            // 其他计算（KPI已移除，但图表仍需这些数据）
             const totalInteraction = allData.reduce((sum, d) => sum + (d.like_count || 0) + (d.collect_count || 0) + (d.comment_count || 0) + (d.share_count || 0), 0);
             const avgInteraction = Math.round(totalInteraction / allData.length);
             const brandStats = {};
@@ -338,10 +327,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 brandStats[b] = { total, avg, count: items.length };
             });
 
-            // 渲染图表
             renderCharts(allData, brands, brandStats);
-            populateFilters(allData, brands);
-
+            document.getElementById('dataSummary').textContent = `✅ 数据加载成功 · 共 ${allData.length} 条内容`;
         })
         .catch(error => {
             console.error('❌ 数据加载失败:', error);
@@ -351,7 +338,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
 
     // ===========================================================
-    // 图表渲染（保持原逻辑，字体已调大）
+    // 图表渲染
     // ===========================================================
     function renderCharts(allData, brands, brandStats) {
         const morandi = {
@@ -435,10 +422,13 @@ document.addEventListener('DOMContentLoaded', function() {
             const items = allData.filter(d => d.brand === brand);
             const qMap = {};
             items.forEach(d => {
-                const q = d.publish_quarter;
-                if (q) {
-                    const total = (d.like_count||0) + (d.collect_count||0) + (d.comment_count||0) + (d.share_count||0);
-                    qMap[q] = (qMap[q] || 0) + total;
+                let q = d.publish_quarter;
+                if (q !== undefined && q !== null && q !== '') {
+                    q = String(q).trim();
+                    if (/^\d{4}Q[1-4]$/.test(q)) {
+                        const total = (d.like_count||0) + (d.collect_count||0) + (d.comment_count||0) + (d.share_count||0);
+                        qMap[q] = (qMap[q] || 0) + total;
+                    }
                 }
             });
             if (Object.keys(qMap).length === 0) return null;
@@ -451,8 +441,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 const avg = brandStats[brand]?.avg || 0;
                 return Array(quarters.length).fill(avg);
             }
-            const sortedQs = Object.keys(qData).sort();
-            if (sortedQs.length === 0) return Array(quarters.length).fill(0);
             const values = quarters.map(q => qData[q] || null);
             let firstIdx = -1, lastIdx = -1;
             for (let i=0; i<values.length; i++) {
@@ -509,8 +497,9 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
 
-        // ③ 主题平均
+        // ③ 主题平均互动量（直接计算品牌数据，带 trim 匹配）
         const themeLabels = ['品牌宣传', '产品宣传', '服务宣传', '产品测评', '车主故事', '员工故事'];
+
         function getThemeOverall() {
             const map = {};
             themeLabels.forEach(t => map[t] = { sum: 0, count: 0 });
@@ -524,13 +513,24 @@ document.addEventListener('DOMContentLoaded', function() {
             });
             return themeLabels.map(t => map[t].count > 0 ? Math.round(map[t].sum / map[t].count) : 0);
         }
-        const themeOverall = getThemeOverall();
 
-        function generateThemeDataForBrand(brand) {
-            const brandAvg = brandStats[brand]?.avg || 0;
-            const globalAvg = overallAvg || 1;
-            const factor = brandAvg / globalAvg;
-            return themeOverall.map(v => Math.round(v * factor));
+        function getThemeAvgForBrand(brand) {
+            if (brand === 'all' || !brand) {
+                return getThemeOverall();
+            }
+            const normalizedBrand = brand.trim();
+            const items = allData.filter(d => d.brand && d.brand.trim() === normalizedBrand);
+            const map = {};
+            themeLabels.forEach(t => map[t] = { sum: 0, count: 0 });
+            items.forEach(d => {
+                const t = d.theme;
+                if (t && map[t]) {
+                    const total = (d.like_count||0) + (d.collect_count||0) + (d.comment_count||0) + (d.share_count||0);
+                    map[t].sum += total;
+                    map[t].count += 1;
+                }
+            });
+            return themeLabels.map(t => map[t].count > 0 ? Math.round(map[t].sum / map[t].count) : 0);
         }
 
         const themeBrandFilter = document.getElementById('themeBrandFilter');
@@ -553,7 +553,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 labels: themeLabels,
                 datasets: [{
                     label: '平均互动量',
-                    data: themeOverall,
+                    data: getThemeOverall(),
                     backgroundColor: themeColors,
                     borderRadius: 4,
                     barPercentage: 0.55,
@@ -571,13 +571,13 @@ document.addEventListener('DOMContentLoaded', function() {
         });
 
         function updateThemeChart(brand) {
-            const data = (brand === 'all') ? themeOverall : generateThemeDataForBrand(brand);
+            const data = getThemeAvgForBrand(brand);
             themeChart.data.datasets[0].data = data;
             themeChart.update();
         }
         themeBrandFilter.addEventListener('change', function() { updateThemeChart(this.value); });
 
-        // ④ 品牌类型（OES→IAM）
+        // ④ 品牌类型
         const typeLabels = ['零配件厂商', 'IAM', 'OEM'];
         const typeMap = {};
         typeLabels.forEach(t => typeMap[t] = { sum: 0, count: 0 });
@@ -615,8 +615,9 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
 
-        // ⑤ 目标平均
+        // ⑤ 目标平均互动量（直接计算品牌数据）
         const goalLabels = ['品牌公域建设', '扩大品牌声量', '宣传具体服务或产品', '用户口碑', '包装员工形象'];
+
         function getGoalOverall() {
             const map = {};
             goalLabels.forEach(g => map[g] = { sum: 0, count: 0 });
@@ -630,13 +631,24 @@ document.addEventListener('DOMContentLoaded', function() {
             });
             return goalLabels.map(g => map[g].count > 0 ? parseFloat((map[g].sum / map[g].count / 1000).toFixed(2)) : 0);
         }
-        const goalOverall = getGoalOverall();
 
-        function generateGoalDataForBrand(brand) {
-            const brandAvg = brandStats[brand]?.avg || 0;
-            const globalAvg = overallAvg || 1;
-            const factor = brandAvg / globalAvg;
-            return goalOverall.map(v => parseFloat((v * factor).toFixed(2)));
+        function getGoalAvgForBrand(brand) {
+            if (brand === 'all' || !brand) {
+                return getGoalOverall();
+            }
+            const normalizedBrand = brand.trim();
+            const items = allData.filter(d => d.brand && d.brand.trim() === normalizedBrand);
+            const map = {};
+            goalLabels.forEach(g => map[g] = { sum: 0, count: 0 });
+            items.forEach(d => {
+                const g = d.goal;
+                if (g && map[g]) {
+                    const total = (d.like_count||0) + (d.collect_count||0) + (d.comment_count||0) + (d.share_count||0);
+                    map[g].sum += total;
+                    map[g].count += 1;
+                }
+            });
+            return goalLabels.map(g => map[g].count > 0 ? parseFloat((map[g].sum / map[g].count / 1000).toFixed(2)) : 0);
         }
 
         const goalBrandFilter = document.getElementById('goalBrandFilter');
@@ -659,7 +671,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 labels: goalLabels,
                 datasets: [{
                     label: '平均互动量（千）',
-                    data: goalOverall,
+                    data: getGoalOverall(),
                     backgroundColor: goalColors2,
                     borderRadius: 4,
                     barPercentage: 0.5,
@@ -677,15 +689,16 @@ document.addEventListener('DOMContentLoaded', function() {
         });
 
         function updateGoalChart(brand) {
-            const data = (brand === 'all') ? goalOverall : generateGoalDataForBrand(brand);
+            const data = getGoalAvgForBrand(brand);
             goalChart.data.datasets[0].data = data;
             goalChart.update();
         }
         goalBrandFilter.addEventListener('change', function() { updateGoalChart(this.value); });
 
-        // 分布饼图
+        // ===========================================================
+        // 分布饼图（过滤零值且品牌匹配带 trim）
+        // ===========================================================
         const brandFilter = document.getElementById('brandFilter');
-        // 添加"全部"已存在
         sortedBrands.forEach(b => {
             const opt = document.createElement('option');
             opt.value = b;
@@ -696,7 +709,11 @@ document.addEventListener('DOMContentLoaded', function() {
         function getThemeCounts(brandFilterVal) {
             const map = {};
             themeLabels.forEach(t => map[t] = 0);
-            const items = brandFilterVal ? allData.filter(d => d.brand === brandFilterVal) : allData;
+            let items = allData;
+            if (brandFilterVal) {
+                const normalized = brandFilterVal.trim();
+                items = allData.filter(d => d.brand && d.brand.trim() === normalized);
+            }
             items.forEach(d => {
                 const t = d.theme;
                 if (t && map[t] !== undefined) map[t]++;
@@ -707,7 +724,11 @@ document.addEventListener('DOMContentLoaded', function() {
         function getGoalCounts(brandFilterVal) {
             const map = {};
             goalLabels.forEach(g => map[g] = 0);
-            const items = brandFilterVal ? allData.filter(d => d.brand === brandFilterVal) : allData;
+            let items = allData;
+            if (brandFilterVal) {
+                const normalized = brandFilterVal.trim();
+                items = allData.filter(d => d.brand && d.brand.trim() === normalized);
+            }
             items.forEach(d => {
                 const g = d.goal;
                 if (g && map[g] !== undefined) map[g]++;
@@ -742,22 +763,46 @@ document.addEventListener('DOMContentLoaded', function() {
 
         let themeChartDist = new Chart(themeDistCtx, {
             type: 'doughnut',
-            data: { labels: themeLabels, datasets: [{ data: themeCountsAll, backgroundColor: themeColors, borderColor: '#f7f2eb', borderWidth: 2 }] },
+            data: {
+                labels: themeLabels.filter((_, i) => themeCountsAll[i] > 0),
+                datasets: [{
+                    data: themeCountsAll.filter(v => v > 0),
+                    backgroundColor: themeColors.filter((_, i) => themeCountsAll[i] > 0),
+                    borderColor: '#f7f2eb',
+                    borderWidth: 2
+                }]
+            },
             options: doughnutOptions
         });
 
         let goalChartDist = new Chart(goalDistCtx, {
             type: 'doughnut',
-            data: { labels: goalLabels, datasets: [{ data: goalCountsAll, backgroundColor: goalColors2, borderColor: '#f7f2eb', borderWidth: 2 }] },
+            data: {
+                labels: goalLabels.filter((_, i) => goalCountsAll[i] > 0),
+                datasets: [{
+                    data: goalCountsAll.filter(v => v > 0),
+                    backgroundColor: goalColors2.filter((_, i) => goalCountsAll[i] > 0),
+                    borderColor: '#f7f2eb',
+                    borderWidth: 2
+                }]
+            },
             options: doughnutOptions
         });
 
         function updateDistPie(brandVal) {
-            const tc = brandVal ? getThemeCounts(brandVal) : themeCountsAll;
-            const gc = brandVal ? getGoalCounts(brandVal) : goalCountsAll;
-            themeChartDist.data.datasets[0].data = tc;
+            const themeData = getThemeCounts(brandVal);
+            const goalData = getGoalCounts(brandVal);
+            const themeFiltered = themeData.map((v, i) => ({ label: themeLabels[i], value: v })).filter(item => item.value > 0);
+            const goalFiltered = goalData.map((v, i) => ({ label: goalLabels[i], value: v })).filter(item => item.value > 0);
+            
+            themeChartDist.data.labels = themeFiltered.map(item => item.label);
+            themeChartDist.data.datasets[0].data = themeFiltered.map(item => item.value);
+            themeChartDist.data.datasets[0].backgroundColor = themeColors.filter((_, i) => themeData[i] > 0);
             themeChartDist.update();
-            goalChartDist.data.datasets[0].data = gc;
+
+            goalChartDist.data.labels = goalFiltered.map(item => item.label);
+            goalChartDist.data.datasets[0].data = goalFiltered.map(item => item.value);
+            goalChartDist.data.datasets[0].backgroundColor = goalColors2.filter((_, i) => goalData[i] > 0);
             goalChartDist.update();
         }
 
@@ -766,7 +811,9 @@ document.addEventListener('DOMContentLoaded', function() {
             updateDistPie(val === 'all' ? null : val);
         });
 
-        // 榜单
+        // ===========================================================
+        // 榜单明细
+        // ===========================================================
         const fullData = allData.map(d => ({
             brand: d.brand,
             brand_type: d.brand_type,
@@ -852,7 +899,9 @@ document.addEventListener('DOMContentLoaded', function() {
         rankGoalFilter.addEventListener('change', renderRanking);
         renderRanking();
 
+        // ===========================================================
         // 相关性散点图
+        // ===========================================================
         const corrData = sortedBrands.map(b => {
             const items = allData.filter(d => d.brand === b);
             const likes = items.reduce((s, d) => s + (d.like_count||0), 0);
@@ -933,11 +982,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
 
         document.getElementById('updateDate').textContent = new Date().toISOString().slice(0,10);
-    }
-
-    // 占位函数（图表内已实现）
-    function populateFilters(allData, brands) {
-        // 已在图表函数中完成
+        document.getElementById('dataSummary').textContent = `✅ 数据加载成功 · 共 ${allData.length} 条内容`;
     }
 
     // Tab 切换
