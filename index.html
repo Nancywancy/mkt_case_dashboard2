@@ -29,8 +29,9 @@
         .tab-panel.active { display:block; }
         @keyframes fadeIn { from { opacity:0.4; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }
         .chart-card { background:#fdfaf7; border-radius:14px; padding:18px 20px 16px; border:1px solid #e3d9ce; margin-bottom:20px; }
-        .chart-title { font-size:14px; font-weight:600; color:#5c4d3f; margin-bottom:12px; display:flex; align-items:center; gap:8px; }
+        .chart-title { font-size:14px; font-weight:600; color:#5c4d3f; margin-bottom:12px; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
         .chart-title .unit { font-size:11px; font-weight:400; color:#b8a99a; background:#ece3d9; padding:0 10px; border-radius:12px; line-height:22px; }
+        .chart-title .hint { font-size:11px; font-weight:400; color:#b8a99a; background:#ece3d9; padding:0 10px; border-radius:12px; line-height:22px; }
         .chart-body { min-height:220px; position:relative; }
         .chart-body canvas { width:100% !important; height:220px !important; max-height:260px; }
         .full-width .chart-body canvas { height:260px !important; max-height:300px; }
@@ -131,7 +132,10 @@
             <div class="chart-body"><canvas id="chartBrandTotalAvg"></canvas></div>
         </div>
         <div class="chart-card full-width">
-            <div class="chart-title">② 各品牌季度平均互动量变化 <span class="unit">线性插值 · 2024Q1–2026Q2</span></div>
+            <div class="chart-title">
+                ② 各品牌季度平均互动量变化（2025Q2起）
+                <span class="hint">2024Q1–2025Q1 仅含 NGK 3条数据，故不显示</span>
+            </div>
             <div class="chart-body"><canvas id="chartTimeTrend"></canvas></div>
         </div>
         <div class="grid-2col">
@@ -424,8 +428,10 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
 
-        // ② 季度趋势 —— 改为平均互动量
-        const quarters = ['2024Q1','2024Q2','2024Q3','2024Q4','2025Q1','2025Q2','2025Q3','2025Q4','2026Q1','2026Q2'];
+        // ② 季度趋势 —— 仅显示从 2025Q2 开始的季度
+        const allQuarters = ['2024Q1','2024Q2','2024Q3','2024Q4','2025Q1','2025Q2','2025Q3','2025Q4','2026Q1','2026Q2'];
+        // 截取从 2025Q2 开始（索引5）
+        const quarters = allQuarters.slice(5); // ['2025Q2','2025Q3','2025Q4','2026Q1','2026Q2']
         const qColors = [morandi.blue, morandi.orange, morandi.green, morandi.purple, morandi.red, morandi.teal, morandi.gold, morandi.pink, morandi.blueLight];
 
         function parseQuarter(q) {
@@ -437,10 +443,10 @@ document.addEventListener('DOMContentLoaded', function() {
             return null;
         }
 
-        // 返回每个季度的平均互动量（若该季度无数据，则返回 null）
+        // 返回每个季度的平均互动量
         function getQuarterAvgData(brand) {
             const items = allData.filter(d => d.brand === brand);
-            const qMap = {}; // key: 标准季度, value: { sum, count }
+            const qMap = {};
             items.forEach(d => {
                 const raw = d.publish_quarter;
                 const std = parseQuarter(raw);
@@ -451,7 +457,6 @@ document.addEventListener('DOMContentLoaded', function() {
                     qMap[std].count += 1;
                 }
             });
-            // 计算平均值
             const avgMap = {};
             for (let q in qMap) {
                 avgMap[q] = Math.round(qMap[q].sum / qMap[q].count);
@@ -463,10 +468,13 @@ document.addEventListener('DOMContentLoaded', function() {
         function interpolateForBrand(brand) {
             const qData = getQuarterAvgData(brand);
             if (!qData) {
+                // 无季度数据，使用品牌平均互动量作为恒定值
                 const avg = brandStats[brand]?.avg || 0;
                 return Array(quarters.length).fill(avg);
             }
+            // 仅针对 quarters 列表构建值
             const values = quarters.map(q => qData[q] || null);
+            // 插值逻辑：向前填充、向后填充、线性插值
             let firstIdx = -1, lastIdx = -1;
             for (let i=0; i<values.length; i++) {
                 if (values[i] !== null) {
@@ -835,7 +843,6 @@ document.addEventListener('DOMContentLoaded', function() {
         // ===========================================================
         // 榜单明细
         // ===========================================================
-        // 注意：榜单展示的是每条内容的原始数据，不涉及平均，保持不变
         const fullData = allData.map(d => ({
             brand: d.brand,
             brand_type: d.brand_type,
