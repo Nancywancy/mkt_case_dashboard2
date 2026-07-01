@@ -7,6 +7,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
+        /* ===== 全局样式 ===== */
         * { margin:0; padding:0; box-sizing:border-box; }
         body { font-family:'Segoe UI','Microsoft YaHei',sans-serif; background:#eae3da; padding:24px; display:flex; justify-content:center; }
         .dashboard { max-width:1400px; width:100%; background:#f7f2eb; border-radius:24px; padding:32px 36px; box-shadow:0 12px 40px rgba(120,100,80,0.12); }
@@ -50,7 +51,7 @@
         .rank-filters .filter-group label { font-weight:600; color:#5c4d3f; font-size:13px; }
         .rank-filters .filter-group select { padding:4px 10px; border-radius:6px; border:1px solid #d9cec1; background:#fff; font-size:13px; outline:none; cursor:pointer; }
         .table-wrap { overflow-x:auto; border-radius:14px; border:1px solid #e3d9ce; background:#fdfaf7; }
-        .table-wrap table { width:100%; border-collapse:collapse; font-size:12.5px; min-width:1100px; }
+        .table-wrap table { width:100%; border-collapse:collapse; font-size:12.5px; min-width:1200px; }
         .table-wrap th { text-align:left; padding:12px 10px; background:#ece3d9; border-bottom:2px solid #d9cec1; font-size:11px; font-weight:600; color:#5c4d3f; white-space:nowrap; }
         .table-wrap td { padding:9px 10px; border-bottom:1px solid #f1ece6; vertical-align:middle; color:#4a3f38; }
         .table-wrap tr:last-child td { border-bottom:none; }
@@ -66,6 +67,8 @@
         .table-wrap .title-cell:hover { white-space:normal; overflow:visible; background:#fdfaf7; position:relative; z-index:3; }
         .table-wrap .tag-cell { font-size:10px; color:#9a8b7e; }
         .table-wrap .tag-item { display:inline-block; background:#f1ece6; padding:0 6px; border-radius:8px; font-size:9px; line-height:18px; color:#6b5d4f; margin-right:2px; }
+        .table-wrap .source-link a { color:#7d8f96; text-decoration:none; font-size:11px; border-bottom:1px dotted #ccc; }
+        .table-wrap .source-link a:hover { color:#5c4d3f; border-bottom-color:#5c4d3f; }
         .corr-container { background:#fdfaf7; border-radius:14px; padding:24px; border:1px solid #e3d9ce; }
         .corr-body { min-height:400px; }
         .corr-body canvas { width:100% !important; height:400px !important; max-height:440px; }
@@ -81,6 +84,7 @@
             .stats-row { flex-direction:column; align-items:flex-start; gap:10px; }
             .dist-container { grid-template-columns:1fr; }
             .tab-btn { font-size:13px; padding:8px 14px; }
+            .table-wrap table { min-width:900px; }
         }
         @media (max-width:480px) {
             .stats-row .brand-tag { font-size:12px; }
@@ -187,7 +191,7 @@
     </div>
 
     <!-- ============================================================ -->
-    <!-- TAB 3：榜单明细 -->
+    <!-- TAB 3：榜单明细（已添加“源链接”列） -->
     <!-- ============================================================ -->
     <div class="tab-panel" id="panel-ranking">
         <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:16px;">
@@ -227,6 +231,7 @@
                     <th style="min-width:65px;">目标</th>
                     <th style="min-width:65px;">形式</th>
                     <th style="min-width:70px;">特殊标签</th>
+                    <th style="min-width:80px;">源链接</th>  <!-- 新增 -->
                 </tr></thead>
                 <tbody id="rankingBody"></tbody>
             </table>
@@ -430,7 +435,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // ② 季度趋势 —— 仅显示从 2025Q2 开始的季度
         const allQuarters = ['2024Q1','2024Q2','2024Q3','2024Q4','2025Q1','2025Q2','2025Q3','2025Q4','2026Q1','2026Q2'];
-        // 截取从 2025Q2 开始（索引5）
         const quarters = allQuarters.slice(5); // ['2025Q2','2025Q3','2025Q4','2026Q1','2026Q2']
         const qColors = [morandi.blue, morandi.orange, morandi.green, morandi.purple, morandi.red, morandi.teal, morandi.gold, morandi.pink, morandi.blueLight];
 
@@ -443,7 +447,6 @@ document.addEventListener('DOMContentLoaded', function() {
             return null;
         }
 
-        // 返回每个季度的平均互动量
         function getQuarterAvgData(brand) {
             const items = allData.filter(d => d.brand === brand);
             const qMap = {};
@@ -468,13 +471,10 @@ document.addEventListener('DOMContentLoaded', function() {
         function interpolateForBrand(brand) {
             const qData = getQuarterAvgData(brand);
             if (!qData) {
-                // 无季度数据，使用品牌平均互动量作为恒定值
                 const avg = brandStats[brand]?.avg || 0;
                 return Array(quarters.length).fill(avg);
             }
-            // 仅针对 quarters 列表构建值
             const values = quarters.map(q => qData[q] || null);
-            // 插值逻辑：向前填充、向后填充、线性插值
             let firstIdx = -1, lastIdx = -1;
             for (let i=0; i<values.length; i++) {
                 if (values[i] !== null) {
@@ -841,7 +841,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
 
         // ===========================================================
-        // 榜单明细
+        // 榜单明细（新增“源链接”列）
         // ===========================================================
         const fullData = allData.map(d => ({
             brand: d.brand,
@@ -857,7 +857,8 @@ document.addEventListener('DOMContentLoaded', function() {
             theme: d.theme,
             goal: d.goal,
             format: d.format,
-            tags: d.special_tags ? (Array.isArray(d.special_tags) ? d.special_tags : [d.special_tags]) : []
+            tags: d.special_tags ? (Array.isArray(d.special_tags) ? d.special_tags : [d.special_tags]) : [],
+            url: d.url || ''  // 新增 url 字段
         }));
 
         const rankBrandFilter = document.getElementById('rankBrandFilter');
@@ -890,7 +891,7 @@ document.addEventListener('DOMContentLoaded', function() {
             rankTbody.innerHTML = '';
             if (top.length === 0) {
                 const tr = document.createElement('tr');
-                tr.innerHTML = '<td colspan="16" style="text-align:center;padding:20px;color:#b8a99a;">没有符合筛选条件的数据</td>';
+                tr.innerHTML = '<td colspan="17" style="text-align:center;padding:20px;color:#b8a99a;">没有符合筛选条件的数据</td>';
                 rankTbody.appendChild(tr);
                 return;
             }
@@ -900,6 +901,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 const bh = idx < 3 ? 'highlight' : '';
                 const tags = p.tags || [];
                 const tagsHtml = tags.length ? tags.map(t => `<span class="tag-item">${t}</span>`).join('') : '<span style="color:#c4b8ab;font-size:10px;">—</span>';
+                const linkHtml = p.url ? `<a href="${p.url}" target="_blank" rel="noopener noreferrer">🔗 链接</a>` : '—';
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
                     <td class="rank-num">${idx+1}</td>
@@ -918,6 +920,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     <td>${p.goal || ''}</td>
                     <td>${p.format || ''}</td>
                     <td class="tag-cell">${tagsHtml}</td>
+                    <td class="source-link">${linkHtml}</td>
                 `;
                 rankTbody.appendChild(tr);
             });
